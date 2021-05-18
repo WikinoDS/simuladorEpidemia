@@ -1,0 +1,377 @@
+import random
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+class populacao:
+
+  ""classe que vai auxiliar no controle da classe individuo, ela quem vai trabalhar diretamente com essa classe""
+   
+   def __init__(self, n, proporcaoMascara=0, proporcaoIsolamento=0,
+                 proporcaoContaminado=0.05, proporcaoReinfeccao=0, proporcaoVacinado=0, eficaciaGlobal=0.52, probabilidadeRastreio=0):
+       
+        self.populacaoTotal = n                                     # O parametro n diz respeito ao tamanho da população
+        self.listaIndividuos = list(range(n))                       # listaIndividuos vai ser a lista cujo cada elemento é da classe individuo, sera constantemente iterada
+       
+        # Cria alguns atributos que serao util
+        
+        # O codigo todo é baseado em probabilidade, nada é deterministico. Os atributos dizem respeito a probabilidade de cada individuo ter 
+        # determinada característica. A proporcao dessa caracteristica vai ter uma distribuição binomial com media no parâmetro
+        
+        self.proporcaoMascara = proporcaoMascara                    # Qual a probabilidade de um individuo usar mascara?
+        self.proporcaoIsolamento = proporcaoIsolamento              # Qual a probabilidade de um individuo aderir ao isolamento social?
+        self.proporcaoContaminado = proporcaoContaminado            # Qual a probabilidade de um individuo começar contaminado?
+        self.proporcaoVacinado = proporcaoVacinado                  # Qual a probabilidade de um individuo ser vacinado?
+        self.eficaciaGlobal = eficaciaGlobal                        # Qual a probabilidade de um individuo vacinado ser imune?
+        self.proporcaoReinfeccao = proporcaoReinfeccao              # Qual a probabilidade de um indiviuo ser reinfectado?
+        self.probabilidadeRastreio = probabilidadeRastreio          # Qual a probabilidade de um individuo infectado ser testado?
+
+        self.inicio = time.time()                                   # Define o tempo de inicio da populacao, o ideal é que a funcao declara individuos seja chamada logo em seguida
+
+# -------------------------------- Define cada elemento do argumento dado como pertencente a classe individuo ------------------------------ #
+    def declara_individuos(self):
+        for i in range(self.populacaoTotal):            # Entra em cada indice da lista
+            self.listaIndividuos[i] = individuo(self)   # Atribui aquele indice da lista um individuo
+            
+        self.analise_previa()                           # Apos declarar todos os individuos, chama a funcao analise_previa
+
+# ----------------------------- faz uma analise previa da situacao da populacao ---------------------------------------#
+    def analise_previa(self):
+        self.serieTemporal = {'Infectados': [len([x for x in self.listaIndividuos if x.infectado])],
+                              'Suscetiveis': [len([x for x in self.listaIndividuos if x.suscetivel])],
+                              'Recuperados': [len([x for x in self.listaIndividuos if x.recuperado])]} # Cria um dicionario que guarda informações do desenvolvimento da pandemia
+        self.serieTemporalIndex = [time.time() - self.inicio]                                           # Cria uma lista que representará os indices do dicionario serieTemporal
+                                                                                                      
+                                                                                                        # Honestamente acredito que um DataFrame poderia ser usado em SerieTemporal
+
+        self.aderindoLockdown = len([x for x in self.listaIndividuos if x.isolamentoSocial])            # Conta quantos individuos aderiram ao isolamento social
+        self.usandoMascara = len([x for x in self.listaIndividuos if x.mascara])                        # Conta quantos individuos aderiram ao uso de mascara
+        self.vacinados = len([x for x in self.listaIndividuos if x.vacinado])                           # Conta quantos individuos foram vacinados
+               
+ # -------------------------- Aplica a funcao "rodada" da classe individuo a cada indiviiduo da populacao -------------------------------------- #
+    def aplica_rodada(self):
+        for i in range(self.populacaoTotal):
+            self.listaIndividuos[i].rodada()  
+
+
+ # --------------------------- Atualiza no grafico os dados agregados da populacao ------------------------------------------ #
+    def atualiza_dados(self, axSerieTemporal):
+    
+        self.serieTemporal['Suscetiveis'].append(len([x for x in self.listaIndividuos if x.suscetivel]))    # Adciona o atual numero de suscetiveis
+        self.serieTemporal['Infectados'].append(len([x for x in self.listaIndividuos if x.infectado]))      # Adciona o atual numero de infectados
+        self.serieTemporal['Recuperados'].append(len([x for x in self.listaIndividuos if x.recuperado]))    # Adciona o atual numero de recuperados
+ 
+        self.serieTemporalIndex.append(time.time()-self.inicio)                                             # Adciona o instante de tempo que tudo aconteceu
+        
+        return axSerieTemporal.stackplot(self.serieTemporalIndex, self.serieTemporal.values(), colors=['#A0522D', '#7B68EE', '#BC8F8F'])  # Retorna o atual grafico da curva de contagio
+        
+# --------------------------------------------------------------------------------------------------------------------------------------------#
+
+
+class individuo:
+    def __init__(self,populacao):
+
+        self.populacao = populacao                                # Cria um atributo que permitira a consulta a informações da população que o individuo esta inserido
+        
+        # ----------- Posicao inicial -------------------- #
+        self.posicao = np.array([random.uniform(0, 500), random.uniform(0, 500)]) # Define sua posicao inicial
+
+
+        # ----------- Define se o individuo sera vacinado ------------ #
+        if random.random() < self.populacao.proporcaoVacinado:    # Confere se o individuo será vacinado
+            self.vacinado = True                                  # Esse sera vacinado
+
+            if random.random() < self.populacao.eficaciaGlobal:   # Confere se ele será imunizado
+                self.infectado = False                            # Esse foi imunizado, logo já entra no grupo dos recuperados
+                self.suscetivel = False
+                self.recuperado = True  
+                
+            else:                                                 # Esse não recebera a imunidade, apesar da vacina
+                self.recuperado = False
+
+        else:                                                     # Esse não recebera a vacina
+            self.vacinado = False
+            self.recuperado = False
+
+        # ------------ define se o individuo vai começar infectado -------------- #
+        
+        if not self.recuperado:                                       # Esse não foi imunizado, logo pode começar infectado
+            if random.random() < self.populacao.proporcaoContaminado: # Confere se começara infectado
+                self.infectado = True                                 # Começou infectado
+                self.suscetivel = False
+                self.testado = False                                  # Os primeiros infectados não são testados
+
+                self.tempoContagio = time.time()                      # Recolhe o tempo que ele foi infectado    
+                self.tempoQuarentena = random.gauss(13, 2)            # Decide quanto tempo ele vai ficar infectado
+
+            else:
+                self.infectado = False                                # Esse começou como suscetivel
+                self.suscetivel = True
+
+        else:  
+            pass                                                      # Se está recuperado, já teve seus atributos definidos
+            
+
+        # ------------ Define se o individuo vai usar mascara ou nao ----------#
+        if random.random() < self.populacao.proporcaoMascara:       # Esse vai usar mascara
+            self.mascara = True
+        else:                                                       # Esse não vai
+            self.mascara = False
+
+        # --------- Define se o individuo vai aderir ao lockdown -------------#
+        if random.random() < self.populacao.proporcaoIsolamento:
+            self.isolamentoSocial = True                          # Esse aderiu ao lockdown
+            self.raioDePasseio = 5                                # O raio de distancia percorrida por rodada é de no máximo 5 u.c.
+
+        else:
+            self.isolamentoSocial = False                         # Esse não aderiu ao lockdown
+            self.raioDePasseio = 25                               # O raio de distancia percorrida por rodada é de no máximo 25 u.c.
+
+
+    # ------------------------------ Discute o grau de imunidade do individuo em cada situacao ------------------------ #
+    def probabilidadeTransmissao(self, potencialTransmissor):
+
+        if self.mascara and potencialTransmissor.mascara: 
+            self.probabilidadeContagio = 0.15  # ambos de mascara
+
+        elif not self.mascara and potencialTransmissor.mascara:  # saudavel sem mascara, contaminado com mascara
+            self.probabilidadeContagio = 0.3
+
+        elif not self.mascara and not potencialTransmissor.mascara:  # nenhum dos dois de mascara
+            self.probabilidadeContagio = 0.6
+
+        elif self.mascara and not potencialTransmissor.mascara:  # saudavel de mascara, contaminado sem mascara
+            self.probabilidadeContagio = 0.3
+            
+
+    # --------------------Confere se o individuo está no circulo de infecção de algum contaminado e confere se ele será contaminado---------- #
+    def contagio(self):
+
+        for potencialTransmissor in [x for x in self.populacao.listaIndividuos if x.infectado]:                   #  Itera a lista de infectados
+            dist = np.linalg.norm(self.posicao - potencialTransmissor.posicao)                                    #  Checa a distancia do individuo para o infectado
+
+            if dist > 25:
+                 continue                                                                                         # Uma vez distante, isso nao se aplica. Vai para o proximo infectado da lista.
+
+            else:                                                                                            
+                 self.probabilidadeTransmissao(potencialTransmissor)                                              # Uma vez próximos, calcula a probabilidade de contágio
+
+                 if random.random() < self.probabilidadeContagio:                                                 # foi infectado
+                    self.infectado = True                                                                         # Atualiza seus atributos
+                    self.suscetivel = False
+                    
+                    self.tempoQuarentena = random.gauss(13, 2)                                                    # Decide quanto tempo ele ficara infectado e comeca contar esse tempo
+                    self.tempoContagio = time.time()                                                              # Marca o tempo que ele foi infectado
+      
+                    if random.random() < self.populacao.probabilidadeRastreio:                                    # Checa se vai ser um infectado rastreado
+                        self.raioDePasseio = 5                                                                    # Agora está em isolamento e tem sua distancia percorrida atualizada
+                        self.testado = True
+                    
+                    else:
+                        self.testado = False
+
+              
+                 else:                                                                                            # Nao foi contaminado, apesar do contato
+                    continue                                                                                      # Vai para o proximo da lista de infectados
+
+
+    # -------------------------------------------- Funcao que sera chamada cada rodada ---------------------------------------------------------#
+    def rodada(self):
+        # ------------- Faz um caminho aleatorio dentro de um quadrado limitado pelo seu raioDePasseio --------------#
+        
+        self.posicao = self.posicao + np.array([random.uniform(-self.raioDePasseio, self.raioDePasseio),
+                                                    random.uniform(-self.raioDePasseio, self.raioDePasseio)])
+
+
+        # ------------- Centraliza o individuo que saiu do eixo -----------------------------#
+        if self.posicao[0] < 0:
+            self.posicao[0] = 0
+
+        elif self.posicao[0] > 500:
+            self.posicao[0] = 500
+
+        if self.posicao[1] < 0:
+            self.posicao[1] = 0
+
+        elif self.posicao[1] > 500:
+            self.posicao[1] = 500
+
+        # ---------- Analisa a situação dos individuos já contaminados ------------------#
+        if self.infectado:
+            if time.time() - self.tempoContagio > self.tempoQuarentena:                     # O tempo de contágio já é maior que o de quarentena?
+                if self.testado:                                                            # Ele foi testado?
+                    if self.isolamentoSocial:                                               # Estava em isolamento?
+                        pass                                                                # Entao nada muda
+                    else:
+                        self.raioDePasseio = 25                                             # Se ele nao estava em isolamento antes do teste, volta pra condicao inicial
+
+                    self.testado = False                                                    # Coloca a variavel testado como falsa
+
+                else:                                                                       # Se nao foi testado, nada mudou
+                    pass
+                
+                if random.random() < self.populacao.proporcaoReinfeccao:                    # Confere se o individuo sera reinfectavel ou imune
+                    self.infectado = False
+                    self.suscetivel = True                                                  # Esse será reinfectavel
+
+                else: 
+                    self.infectado = False
+                    self.recuperado = True                                                  # Esse será imune
+
+
+            else:                                                                           # O tempo de contagio ainda nao superou o de quarentena? Entao apenas passe
+                pass
+
+            return                                                                          # Encerra a funcao, pois contagio nao se aplica a infectados
+
+        elif self.recuperado:
+            return                                                                          #Encerra a funcao, pois contagio nao se aplica a recuperados
+
+        else:                                                                               # Se nao é infectado e nem recuperado, então é suscetivel
+            self.contagio()                                                                 # Logo, aplica a funcao contagio
+
+# --------------------------------------------------------------------------------------------------------------------------------------------#
+
+
+
+# ------------------------------------ Funcoes que vao cuidar da parte gráfica do codigo ----------------------------------------------------#
+def graficos(axs, fig, lado, populacao):   #  Cria os graficos que serao plotados
+
+    lado = str.upper(lado)
+    if lado == 'A':                        # Lado A ou lado B?
+        m = 0
+    else:
+        m = 3
+         
+    for ax in axs[:, m:m+3]:                    # Itera os subplots que estão do lado que a populacao sera representada
+        for k in ax:
+            k.remove()                          # Exclui todos eles
+
+
+    gs = axs[0, m].get_gridspec() 
+    
+    axSimulador = fig.add_subplot(gs[0:2, m:m+3])       # Atribui as duas primeiras linhas e a 3 colunas do intervalo m:m+3 para a variavel axSimulador, onde ficara a populacao
+    axSimulador.axes.get_xaxis().set_visible(False)     # Desabilita os eixos de axSimulador
+    axSimulador.axes.get_yaxis().set_visible(False)
+    axSimulador.set_title(f'População {lado}', fontsize=10)  # Define o titulo de axSimulador como "População A/B"
+
+
+    gs = axs[2, 0].get_gridspec()
+
+    axSerieTemporal = fig.add_subplot(gs[2, m:m+3])             # Atribui a ultima linha e as 3 colunas do intervalo m:m+3 para a variavel axSerieTemporal
+    axSerieTemporal.set_facecolor('#DCDCDC')                    # Preenche seu fundo da mesma cor que a tela vai usar
+    axSerieTemporal.set_xlabel('Tempo')                         # Nomeia seu eixo X como "Tempo"
+    axSerieTemporal.axes.get_yaxis().set_visible(False)         # Oculta seu eixo Y
+    axSerieTemporal.set_title('Curva de contágio', fontsize=10) # Define seu titulo como "Curva de contágio"
+
+    axSerieTemporal.spines['right'].set_visible(False)          # Deixa o retangulo que cerca o grafico como oculto
+    axSerieTemporal.spines['top'].set_visible(False)
+    axSerieTemporal.spines['left'].set_visible(False)
+    axSerieTemporal.spines['bottom'].set_visible(False)
+    
+    
+
+    pontosSuscetiveis, = axSimulador.plot([x.posicao[0] for x in populacao.listaIndividuos if x.suscetivel],                      # Cria 3 elementos plot que poderão ser atualizados a cada rodada com as
+                                          [x.posicao[1] for x in populacao.listaIndividuos if x.suscetivel],'o',color='#7B68EE')  # novas posicoes dos individuos. Um pra cada categoria no modelo
+    pontosInfectados, = axSimulador.plot([x.posicao[0] for x in populacao.listaIndividuos if x.infectado],
+                                         [x.posicao[1] for x in populacao.listaIndividuos if x.infectado],'o',color='#A0522D')
+    pontosRecuperados, = axSimulador.plot([x.posicao[0] for x in populacao.listaIndividuos if x.recuperado],
+                                          [x.posicao[1] for x in populacao.listaIndividuos if x.recuperado],'o',color='#BC8F8F')
+
+
+
+
+    return axSimulador, axSerieTemporal, pontosSuscetiveis, pontosInfectados, pontosRecuperados     # Retorna as variaveis criadas
+    
+
+#---------------------------------------- plota as informacoes preveias da populacao ------------------------------------#
+def plota_textos(axSimulador, populacao):
+    axSimulador.text(0, 480, f'População total: {populacao.populacaoTotal}', color='#4F4F4F')          # Plota as informacoes da populacao recebida no parametro no grafico recebido no parametro
+    axSimulador.text(0, 450, f'Aderindo ao lockdown: {populacao.aderindoLockdown}', color='#4F4F4F')
+    axSimulador.text(0, 420, f'Usando mascara: {populacao.usandoMascara}', color='#4F4F4F')
+    axSimulador.text(0, 390, f'Vacinados: {populacao.vacinados}', color='#4F4F4F')
+    axSimulador.text(0, 360, f'Eficacia Global da vacina: {populacao.eficaciaGlobal}', color='#4F4F4F')
+    axSimulador.text(0, 330, f'Probabilidade de rastreio {populacao.probabilidadeRastreio}', color='#4F4F4F')
+#-----------------------------------------------------------------------------------------------------------------------------------------------#
+
+# ------------------------------- Configura a parte grafica ---------------------------------#
+plt.style.use(['ggplot'])  # Usa o estilo ggploT 
+
+fig, axs = plt.subplots(ncols=6, nrows=3, figsize=(6, 6))             # Cria uma figura com 9 espaços, 3 linhas e 3 colunas
+fig.suptitle('Modelo S I R', fontsize=35)                             # Define seu titulo como "Modelo S I R"
+fig.patch.set_facecolor('#DCDCDC')                                     # Pinta o fundo da figura da cor desejada
+
+#----------------------------------------------------------------------------------------------------------------------------------#
+# ----------------------------------------- Configura as duas populacoes a serem comparadas ---------------------------------------------------#
+
+populacaoSimuladaA = populacao(100, proporcaoMascara=0, proporcaoIsolamento=0) # 100 individuos, 0 com mascaras e 0 aderindo ao distanciamento
+populacaoSimuladaA.declara_individuos()                                        # Declara cada elemento como um individuo
+
+populacaoSimuladaB = populacao(100, proporcaoMascara=1, proporcaoIsolamento=0.5, probabilidadeRastreio=0.3)
+populacaoSimuladaB.declara_individuos()
+
+#----------------------------------------------------------------------------------------------------------------------------------------------#
+#--------------------------------------- Cria os subplots de cada populacao-----------------------------------------------------------#
+
+axSimuladorA, axSerieTemporalA, pontosSuscetiveisA, pontosInfectadosA, pontosRecuperadosA = graficos(axs, fig, 'A', populacaoSimuladaA)
+axSimuladorB, axSerieTemporalB, pontosSuscetiveisB, pontosInfectadosB, pontosRecuperadosB = graficos(axs, fig, 'B', populacaoSimuladaB)
+
+plt.tight_layout()                                   # Funcao que cuidará do layout. Usada antes da publicação dos textos, pois não trabalha tão bem com eles
+
+
+plota_textos(axSimuladorA, populacaoSimuladaA)
+plota_textos(axSimuladorB, populacaoSimuladaB)
+#------------------------------------------------------------------------------------------------------------------------------------------------#
+#---------------------- informacoes do autor do codigo ---------------------------#
+
+axSimuladorB.text(0,75,'Simulação elaborada por Vinicius Aquino', color='#A9A9A9', fontsize=7)
+axSimuladorB.text(0,50,'GitHub: @viniciusAquinoGit',color='#A9A9A9', fontsize=7)
+axSimuladorB.text(0,25,'Medium: @vinicius-aquino-med',color='#A9A9A9', fontsize=7)
+axSimuladorB.text(0,0, 'Linkdln: /vinicius-aquino-in',color='#A9A9A9', fontsize=7)
+
+#-----------------------------------------------------------------------------------------------------------------------------------------------#
+#------------------------- funcao usada para atualizar os dados da tela ---------------------------------------------- #
+
+
+def animacao(i):
+    global pontosSuscetiveisA, pontosInfectadosA, pontosRecuperadosA,pontosSuscetiveisA, pontosInfectadosB, pontosRecuperadosB, populacaoSimuladaB,populacaoSimuladaB, fps
+
+    if len([x for x in populacaoSimuladaA.listaIndividuos if x.infectado])>0:       # O numero de infectados na populacaoSimuladaA é maior que 0?
+
+        populacaoSimuladaA.aplica_rodada()                                          # Se sim, aplica a rodada e atualiza as posicoes
+
+        pontosSuscetiveisA.set_data([x.posicao[0] for x in populacaoSimuladaA.listaIndividuos if x.suscetivel],
+                                    [x.posicao[1] for x in populacaoSimuladaA.listaIndividuos if x.suscetivel])
+        pontosInfectadosA.set_data([x.posicao[0] for x in populacaoSimuladaA.listaIndividuos if x.infectado],
+                                   [x.posicao[1] for x in populacaoSimuladaA.listaIndividuos if x.infectado])
+        pontosRecuperadosA.set_data([x.posicao[0] for x in populacaoSimuladaA.listaIndividuos if x.recuperado],
+                                    [x.posicao[1] for x in populacaoSimuladaA.listaIndividuos if x.recuperado])
+
+        populacaoSimuladaA.atualiza_dados(axSerieTemporalA)                       # Atualiza o gráfico da curva de contagio
+
+    else:
+        pass                                                                        # Se for igual a 0, apenas passe
+        
+
+    if len([x for x in populacaoSimuladaB.listaIndividuos if x.infectado])>0:       # Repete o padrão acima
+        populacaoSimuladaB.aplica_rodada()
+
+        pontosSuscetiveisB.set_data([x.posicao[0] for x in populacaoSimuladaB.listaIndividuos if x.suscetivel],
+                                   [x.posicao[1] for x in populacaoSimuladaB.listaIndividuos if x.suscetivel])
+        pontosInfectadosB.set_data([x.posicao[0] for x in populacaoSimuladaB.listaIndividuos if x.infectado],
+                                  [x.posicao[1] for x in populacaoSimuladaB.listaIndividuos if x.infectado])
+        pontosRecuperadosB.set_data([x.posicao[0] for x in populacaoSimuladaB.listaIndividuos if x.recuperado],
+                                   [x.posicao[1] for x in populacaoSimuladaB.listaIndividuos if x.recuperado])
+
+        populacaoSimuladaB.atualiza_dados(axSerieTemporalB)
+    else:
+        pass
+
+
+    return (pontosSuscetiveisA, pontosRecuperadosA, pontosSuscetiveisA,pontosSuscetiveisB, pontosInfectadosB, pontosRecuperadosB)     # Retorna os dados atualizados (ou não)
+
+ani = animation.FuncAnimation(fig, animacao, interval=1, save_count=250) # Save count diz respeito ao limite máximo de frames que serão salvos no GIF, se ele for cortado ao meio, convem aumentar esse parâmetro
+#ani.save ('simulacao.gif', fps = 60)           # Se pretende salvar a animação, convem dar uma olhada na documentacao da biblioteca para ver se tem os requisitos necessários
+plt.show()
+
+    
