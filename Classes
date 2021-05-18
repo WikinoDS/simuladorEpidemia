@@ -1,0 +1,239 @@
+
+class populacao:
+
+    def __init__(self, n, proporcaoMascara=0, proporcaoIsolamento=0,
+                 proporcaoContaminado=0.05, proporcaoReinfeccao=0, proporcaoVacinado=0, eficaciaGlobal=0.52,
+                 probabilidadeRastreio=0):
+
+        self.populacaoTotal = n  # O parametro n diz respeito ao tamanho da população
+        self.listaIndividuos = list(range(
+            n))  # listaIndividuos vai ser a lista cujo cada elemento é da classe individuo, sera constantemente iterada
+
+        # Cria alguns atributos que serao util
+
+        # O codigo todo é baseado em probabilidade, nada é deterministico. Os atributos dizem respeito a probabilidade de cada individuo ter
+        # determinada característica. A proporcao dessa caracteristica vai ter uma distribuição binomial com media no parâmetro
+
+        self.proporcaoMascara = proporcaoMascara  # Qual a probabilidade de um individuo usar mascara?
+        self.proporcaoIsolamento = proporcaoIsolamento  # Qual a probabilidade de um individuo aderir ao isolamento social?
+        self.proporcaoContaminado = proporcaoContaminado  # Qual a probabilidade de um individuo começar contaminado?
+        self.proporcaoVacinado = proporcaoVacinado  # Qual a probabilidade de um individuo ser vacinado?
+        self.eficaciaGlobal = eficaciaGlobal  # Qual a probabilidade de um individuo vacinado ser imune?
+        self.proporcaoReinfeccao = proporcaoReinfeccao  # Qual a probabilidade de um indiviuo ser reinfectado?
+        self.probabilidadeRastreio = probabilidadeRastreio  # Qual a probabilidade de um individuo infectado ser testado?
+
+        self.inicio = time.time()  # Define o tempo de inicio da populacao, o ideal é que a funcao declara individuos seja chamada logo em seguida
+
+        # -------------------------------- Define cada elemento do argumento dado como pertencente a classe individuo ------------------------------ #
+
+    def declara_individuos(self):
+        for i in range(self.populacaoTotal):  # Entra em cada indice da lista
+            self.listaIndividuos[i] = individuo(self)  # Atribui aquele indice da lista um individuo
+
+        self.analise_previa()  # Apos declarar todos os individuos, chama a funcao analise_previa
+
+        # ----------------------------- faz uma analise previa da situacao da populacao ---------------------------------------#
+
+    def analise_previa(self):
+        self.serieTemporal = {'Infectados': [len([x for x in self.listaIndividuos if x.infectado])],
+                              'Suscetiveis': [len([x for x in self.listaIndividuos if x.suscetivel])],
+                              'Recuperados': [len([x for x in self.listaIndividuos if
+                                                   x.recuperado])]}  # Cria um dicionario que guarda informações do desenvolvimento da pandemia
+        self.serieTemporalIndex = [
+            time.time() - self.inicio]  # Cria uma lista que representará os indices do dicionario serieTemporal
+
+        # Honestamente acredito que um DataFrame poderia ser usado em SerieTemporal
+
+        self.aderindoLockdown = len([x for x in self.listaIndividuos if
+                                     x.isolamentoSocial])  # Conta quantos individuos aderiram ao isolamento social
+        self.usandoMascara = len(
+            [x for x in self.listaIndividuos if x.mascara])  # Conta quantos individuos aderiram ao uso de mascara
+        self.vacinados = len(
+            [x for x in self.listaIndividuos if x.vacinado])  # Conta quantos individuos foram vacinados
+
+        # -------------------------- Aplica a funcao "rodada" da classe individuo a cada indiviiduo da populacao -------------------------------------- #
+
+    def aplica_rodada(self):
+        for i in range(self.populacaoTotal):
+            self.listaIndividuos[i].rodada()
+
+            # --------------------------- Atualiza no grafico os dados agregados da populacao ------------------------------------------ #
+
+    def atualiza_dados(self, axSerieTemporal):
+
+        self.serieTemporal['Suscetiveis'].append(
+            len([x for x in self.listaIndividuos if x.suscetivel]))  # Adciona o atual numero de suscetiveis
+        self.serieTemporal['Infectados'].append(
+            len([x for x in self.listaIndividuos if x.infectado]))  # Adciona o atual numero de infectados
+        self.serieTemporal['Recuperados'].append(
+            len([x for x in self.listaIndividuos if x.recuperado]))  # Adciona o atual numero de recuperados
+
+        self.serieTemporalIndex.append(time.time() - self.inicio)  # Adciona o instante de tempo que tudo aconteceu
+
+        return axSerieTemporal.stackplot(self.serieTemporalIndex, self.serieTemporal.values(),
+                                         colors=['#A0522D', '#7B68EE',
+                                                 '#BC8F8F'])  # Retorna o atual grafico da curva de contagio
+
+
+# --------------------------------------------------------------------------------------------------------------------------------------------#
+
+
+class individuo:
+    def __init__(self, populacao):
+
+        self.populacao = populacao  # Cria um atributo que permitira a consulta a informações da população que o individuo esta inserido
+
+        # ----------- Posicao inicial -------------------- #
+        self.posicao = np.array([random.uniform(0, 500), random.uniform(0, 500)])  # Define sua posicao inicial
+
+        # ----------- Define se o individuo sera vacinado ------------ #
+        if random.random() < self.populacao.proporcaoVacinado:  # Confere se o individuo será vacinado
+            self.vacinado = True  # Esse sera vacinado
+
+            if random.random() < self.populacao.eficaciaGlobal:  # Confere se ele será imunizado
+                self.infectado = False  # Esse foi imunizado, logo já entra no grupo dos recuperados
+                self.suscetivel = False
+                self.recuperado = True
+
+            else:  # Esse não recebera a imunidade, apesar da vacina
+                self.recuperado = False
+
+        else:  # Esse não recebera a vacina
+            self.vacinado = False
+            self.recuperado = False
+
+        # ------------ define se o individuo vai começar infectado -------------- #
+
+        if not self.recuperado:  # Esse não foi imunizado, logo pode começar infectado
+            if random.random() < self.populacao.proporcaoContaminado:  # Confere se começara infectado
+                self.infectado = True  # Começou infectado
+                self.suscetivel = False
+                self.testado = False  # Os primeiros infectados não são testados
+
+                self.tempoContagio = time.time()  # Recolhe o tempo que ele foi infectado
+                self.tempoQuarentena = random.gauss(13, 2)  # Decide quanto tempo ele vai ficar infectado
+
+            else:
+                self.infectado = False  # Esse começou como suscetivel
+                self.suscetivel = True
+
+        else:
+            pass  # Se está recuperado, já teve seus atributos definidos
+
+        # ------------ Define se o individuo vai usar mascara ou nao ----------#
+        if random.random() < self.populacao.proporcaoMascara:  # Esse vai usar mascara
+            self.mascara = True
+        else:  # Esse não vai
+            self.mascara = False
+
+        # --------- Define se o individuo vai aderir ao lockdown -------------#
+        if random.random() < self.populacao.proporcaoIsolamento:
+            self.isolamentoSocial = True  # Esse aderiu ao lockdown
+            self.raioDePasseio = 5  # O raio de distancia percorrida por rodada é de no máximo 5 u.c.
+
+        else:
+            self.isolamentoSocial = False  # Esse não aderiu ao lockdown
+            self.raioDePasseio = 25  # O raio de distancia percorrida por rodada é de no máximo 25 u.c.
+
+    # ------------------------------ Discute o grau de imunidade do individuo em cada situacao ------------------------ #
+    def probabilidadeTransmissao(self, potencialTransmissor):
+
+        if self.mascara and potencialTransmissor.mascara:
+            self.probabilidadeContagio = 0.15  # ambos de mascara
+
+        elif not self.mascara and potencialTransmissor.mascara:  # saudavel sem mascara, contaminado com mascara
+            self.probabilidadeContagio = 0.3
+
+        elif not self.mascara and not potencialTransmissor.mascara:  # nenhum dos dois de mascara
+            self.probabilidadeContagio = 0.6
+
+        elif self.mascara and not potencialTransmissor.mascara:  # saudavel de mascara, contaminado sem mascara
+            self.probabilidadeContagio = 0.3
+
+    # --------------------Confere se o individuo está no circulo de infecção de algum contaminado e confere se ele será contaminado---------- #
+    def contagio(self):
+
+        for potencialTransmissor in [x for x in self.populacao.listaIndividuos if
+                                     x.infectado]:  # Itera a lista de infectados
+            dist = np.linalg.norm(
+                self.posicao - potencialTransmissor.posicao)  # Checa a distancia do individuo para o infectado
+
+            if dist > 25:
+                continue  # Uma vez distante, isso nao se aplica. Vai para o proximo infectado da lista.
+
+            else:
+                self.probabilidadeTransmissao(
+                    potencialTransmissor)  # Uma vez próximos, calcula a probabilidade de contágio
+
+                if random.random() < self.probabilidadeContagio:  # foi infectado
+                    self.infectado = True  # Atualiza seus atributos
+                    self.suscetivel = False
+
+                    self.tempoQuarentena = random.gauss(13,
+                                                        2)  # Decide quanto tempo ele ficara infectado e comeca contar esse tempo
+                    self.tempoContagio = time.time()  # Marca o tempo que ele foi infectado
+
+                    if random.random() < self.populacao.probabilidadeRastreio:  # Checa se vai ser um infectado rastreado
+                        self.raioDePasseio = 5  # Agora está em isolamento e tem sua distancia percorrida atualizada
+                        self.testado = True
+
+                    else:
+                        self.testado = False
+
+
+                else:  # Nao foi contaminado, apesar do contato
+                    continue  # Vai para o proximo da lista de infectados
+
+    # -------------------------------------------- Funcao que sera chamada cada rodada ---------------------------------------------------------#
+    def rodada(self):
+        # ------------- Faz um caminho aleatorio dentro de um quadrado limitado pelo seu raioDePasseio --------------#
+
+        self.posicao = self.posicao + np.array([random.uniform(-self.raioDePasseio, self.raioDePasseio),
+                                                random.uniform(-self.raioDePasseio, self.raioDePasseio)])
+
+        # ------------- Centraliza o individuo que saiu do eixo -----------------------------#
+        if self.posicao[0] < 0:
+            self.posicao[0] = 0
+
+        elif self.posicao[0] > 500:
+            self.posicao[0] = 500
+
+        if self.posicao[1] < 0:
+            self.posicao[1] = 0
+
+        elif self.posicao[1] > 500:
+            self.posicao[1] = 500
+
+        # ---------- Analisa a situação dos individuos já contaminados ------------------#
+        if self.infectado:
+            if time.time() - self.tempoContagio > self.tempoQuarentena:  # O tempo de contágio já é maior que o de quarentena?
+                if self.testado:  # Ele foi testado?
+                    if self.isolamentoSocial:  # Estava em isolamento?
+                        pass  # Entao nada muda
+                    else:
+                        self.raioDePasseio = 25  # Se ele nao estava em isolamento antes do teste, volta pra condicao inicial
+
+                    self.testado = False  # Coloca a variavel testado como falsa
+
+                else:  # Se nao foi testado, nada mudou
+                    pass
+
+                if random.random() < self.populacao.proporcaoReinfeccao:  # Confere se o individuo sera reinfectavel ou imune
+                    self.infectado = False
+                    self.suscetivel = True  # Esse será reinfectavel
+
+                else:
+                    self.infectado = False
+                    self.recuperado = True  # Esse será imune
+
+
+            else:  # O tempo de contagio ainda nao superou o de quarentena? Entao apenas passe
+                pass
+
+            return  # Encerra a funcao, pois contagio nao se aplica a infectados
+
+        elif self.recuperado:
+            return  # Encerra a funcao, pois contagio nao se aplica a recuperados
+
+        else:  # Se nao é infectado e nem recuperado, então é suscetivel
+            self.contagio()  # Logo, aplica a funcao contagio
