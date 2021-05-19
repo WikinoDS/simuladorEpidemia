@@ -1,0 +1,164 @@
+import random
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from epidemia import * # Modulo Epidemia é o script que está no diretorio com esse mesmo nome
+
+# --------------------------------------------------------------------------------------------------------------------------------------------#
+def cria_populacao(**kwargs): # Funcao para criar populacoes
+    pop = populacao(**kwargs)
+    pop.declara_individuos()
+    return pop
+
+
+def graficos(axs, fig, lado, populacao):  # Cria os graficos que serao plotados
+
+    lado = str.upper(lado)
+    if lado == 'A':  # Lado A ou lado B?
+        m = 0
+    else:
+        m = 3
+
+    for ax in axs[:, m:m + 3]:  # Itera os subplots que estão do lado que a populacao sera representada
+        for k in ax:
+            k.remove()  # Exclui todos eles
+
+    gs = axs[0, m].get_gridspec()
+
+    axSimulador = fig.add_subplot(gs[0:2,
+                                  m:m + 3])  # Atribui as duas primeiras linhas e a 3 colunas do intervalo m:m+3 para a variavel axSimulador, onde ficara a populacao
+    axSimulador.axes.get_xaxis().set_visible(False)  # Desabilita os eixos de axSimulador
+    axSimulador.axes.get_yaxis().set_visible(False)
+    axSimulador.set_title(f'População {lado}', fontsize=10)  # Define o titulo de axSimulador como "População A/B"
+
+    gs = axs[2, 0].get_gridspec()
+
+    axSerieTemporal = fig.add_subplot(
+        gs[2, m:m + 3])  # Atribui a ultima linha e as 3 colunas do intervalo m:m+3 para a variavel axSerieTemporal
+    axSerieTemporal.set_facecolor('#DCDCDC')  # Preenche seu fundo da mesma cor que a tela vai usar
+    axSerieTemporal.set_xlabel('Tempo')  # Nomeia seu eixo X como "Tempo"
+    axSerieTemporal.axes.get_yaxis().set_visible(False)  # Oculta seu eixo Y
+    axSerieTemporal.set_title('Curva de contágio', fontsize=10)  # Define seu titulo como "Curva de contágio"
+
+    axSerieTemporal.spines['right'].set_visible(False)  # Deixa o retangulo que cerca o grafico como oculto
+    axSerieTemporal.spines['top'].set_visible(False)
+    axSerieTemporal.spines['left'].set_visible(False)
+    axSerieTemporal.spines['bottom'].set_visible(False)
+
+    pontosSuscetiveis, = axSimulador.plot([x.posicao[0] for x in populacao.listaIndividuos if x.suscetivel],
+                                          # Cria 3 elementos plot que poderão ser atualizados a cada rodada com as
+                                          [x.posicao[1] for x in populacao.listaIndividuos if x.suscetivel], 'o',
+                                          color='#7B68EE')  # novas posicoes dos individuos. Um pra cada categoria no modelo
+    pontosInfectados, = axSimulador.plot([x.posicao[0] for x in populacao.listaIndividuos if x.infectado],
+                                         [x.posicao[1] for x in populacao.listaIndividuos if x.infectado], 'o',
+                                         color='#A0522D')
+    pontosRecuperados, = axSimulador.plot([x.posicao[0] for x in populacao.listaIndividuos if x.recuperado],
+                                          [x.posicao[1] for x in populacao.listaIndividuos if x.recuperado], 'o',
+                                          color='#BC8F8F')
+
+    return axSimulador, axSerieTemporal, pontosSuscetiveis, pontosInfectados, pontosRecuperados  # Retorna as variaveis criadas
+
+
+
+# ---------------------------------------- plota as informacoes preveias da populacao ------------------------------------#
+def plota_textos(axSimulador, populacao):
+    axSimulador.text(0, 480, f'População total: {populacao.populacaoTotal}',
+                     color='#4F4F4F')  # Plota as informacoes da populacao recebida no parametro no grafico recebido no parametro
+    axSimulador.text(0, 450, f'Aderindo ao lockdown: {populacao.aderindoLockdown}', color='#4F4F4F')
+    axSimulador.text(0, 420, f'Usando mascara: {populacao.usandoMascara}', color='#4F4F4F')
+    axSimulador.text(0, 390, f'Vacinados: {populacao.vacinados}', color='#4F4F4F')
+    axSimulador.text(0, 360, f'Eficacia Global da vacina: {populacao.eficaciaGlobal}', color='#4F4F4F')
+    axSimulador.text(0, 330, f'Probabilidade de rastreio {populacao.probabilidadeRastreio}', color='#4F4F4F')
+# -----------------------------------------------------------------------------------------------------------------------------------------------#
+
+
+
+
+
+# ------------------------------- Inicia a parte grafica ---------------------------------#
+plt.style.use(['ggplot'])  # Usa o estilo ggploT
+
+fig, axs = plt.subplots(ncols=6, nrows=3, figsize=(6, 6))  # Cria uma figura com 9 espaços, 3 linhas e 3 colunas
+fig.suptitle('Modelo S I R', fontsize=35)  # Define seu titulo como "Modelo S I R"
+fig.patch.set_facecolor('#DCDCDC')  # Pinta o fundo da figura da cor desejada
+# ----------------------------------------------------------------------------------------------------------------------------------#
+
+
+# ----------------------------------------- Configura as duas populacoes a serem comparadas ---------------------------------------------------#
+populacaoSimuladaA = cria_populacao(n=100, proporcaoMascara=0,
+                               proporcaoIsolamento=0)  # 100 individuos, 0 com mascaras e 0 aderindo ao distanciamento
+
+populacaoSimuladaB = cria_populacao(n=100, proporcaoMascara=1, proporcaoIsolamento=0.5, probabilidadeRastreio=0.3)
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------#
+
+
+
+# --------------------------------------- Cria os subplots de cada populacao-----------------------------------------------------------#
+
+axSimuladorA, axSerieTemporalA, pontosSuscetiveisA, pontosInfectadosA, pontosRecuperadosA = graficos(axs, fig, 'A',
+                                                                                                     populacaoSimuladaA)
+axSimuladorB, axSerieTemporalB, pontosSuscetiveisB, pontosInfectadosB, pontosRecuperadosB = graficos(axs, fig, 'B',
+                                                                                                     populacaoSimuladaB)
+
+plt.tight_layout()  # Funcao que cuidará do layout. Usada antes da publicação dos textos, pois não trabalha tão bem com eles
+
+plota_textos(axSimuladorA, populacaoSimuladaA)
+plota_textos(axSimuladorB, populacaoSimuladaB)
+# ------------------------------------------------------------------------------------------------------------------------------------------------#
+
+
+
+# ---------------------- informacoes do autor do codigo ---------------------------#
+axSimuladorB.text(0, 75, 'Simulação elaborada por Vinicius Aquino', color='#A9A9A9', fontsize=7)
+axSimuladorB.text(0, 50, 'GitHub: @viniciusAquinoGit', color='#A9A9A9', fontsize=7)
+axSimuladorB.text(0, 25, 'Medium: @vinicius-aquino-med', color='#A9A9A9', fontsize=7)
+axSimuladorB.text(0, 0, 'Linkdln: /vinicius-aquino-in', color='#A9A9A9', fontsize=7)
+# -----------------------------------------------------------------------------------------------------------------------------------------------#
+
+
+# ------------------------- funcao usada para atualizar os dados da tela ---------------------------------------------- #
+def animacao(i):
+    global pontosSuscetiveisA, pontosInfectadosA, pontosRecuperadosA, pontosSuscetiveisA, pontosInfectadosB, pontosRecuperadosB, populacaoSimuladaB, populacaoSimuladaB, fps
+
+    if len([x for x in populacaoSimuladaA.listaIndividuos if x.infectado]) > 0:  # O numero de infectados na populacaoSimuladaA é maior que 0?
+
+        populacaoSimuladaA.aplica_rodada()  # Se sim, aplica a rodada e atualiza as posicoes
+
+        pontosSuscetiveisA.set_data([x.posicao[0] for x in populacaoSimuladaA.listaIndividuos if x.suscetivel],
+                                    [x.posicao[1] for x in populacaoSimuladaA.listaIndividuos if x.suscetivel])
+        pontosInfectadosA.set_data([x.posicao[0] for x in populacaoSimuladaA.listaIndividuos if x.infectado],
+                                   [x.posicao[1] for x in populacaoSimuladaA.listaIndividuos if x.infectado])
+        pontosRecuperadosA.set_data([x.posicao[0] for x in populacaoSimuladaA.listaIndividuos if x.recuperado],
+                                    [x.posicao[1] for x in populacaoSimuladaA.listaIndividuos if x.recuperado])
+
+        populacaoSimuladaA.atualiza_dados(axSerieTemporalA)  # Atualiza o gráfico da curva de contagio
+
+    else:
+        pass  # Se for igual a 0, apenas passe. A ideia é "pausar" o video quando acabar a epidemia.
+
+    if len([x for x in populacaoSimuladaB.listaIndividuos if x.infectado]) > 0:  # Repete o padrão acima
+        populacaoSimuladaB.aplica_rodada()
+
+        pontosSuscetiveisB.set_data([x.posicao[0] for x in populacaoSimuladaB.listaIndividuos if x.suscetivel],
+                                    [x.posicao[1] for x in populacaoSimuladaB.listaIndividuos if x.suscetivel])
+        pontosInfectadosB.set_data([x.posicao[0] for x in populacaoSimuladaB.listaIndividuos if x.infectado],
+                                   [x.posicao[1] for x in populacaoSimuladaB.listaIndividuos if x.infectado])
+        pontosRecuperadosB.set_data([x.posicao[0] for x in populacaoSimuladaB.listaIndividuos if x.recuperado],
+                                    [x.posicao[1] for x in populacaoSimuladaB.listaIndividuos if x.recuperado])
+
+        populacaoSimuladaB.atualiza_dados(axSerieTemporalB)
+    else:
+        pass
+
+    return (pontosSuscetiveisA, pontosRecuperadosA, pontosSuscetiveisA, pontosSuscetiveisB, pontosInfectadosB,
+            pontosRecuperadosB)  # Retorna os dados atualizados (ou não)
+
+
+ani = animation.FuncAnimation(fig, animacao, interval=1,
+                              save_count=250)  # Save count diz respeito ao limite máximo de frames que serão salvos no GIF, se ele for cortado ao meio, convem aumentar esse parâmetro
+
+
+# ani.save ('simulacao.gif', fps = 60)           # Se pretende salvar a animação, convem, também, dar uma olhada na documentacao da biblioteca para ver se tem os requisitos necessários
+plt.show()
