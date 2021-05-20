@@ -1,0 +1,12 @@
+from epidemia import * # Programa que tem a classe populacao e individuo é importado
+
+def define_populacao(**kwargs): # Funcao que cria uma populacao
+    pop = populacao(**kwargs)
+    pop.declara_individuos()
+
+    return pop
+
+a = define_populacao(n=100, proporcaoMascara=0, proporcaoIsolamento = 0) # Populacao é criada
+
+while len([x for x in a.listaIndividuos if x.infectado])>0: # Laço para a simulação acontecer é definido
+    a.aplica_rodada()                                       # Rodada é aplicada a cada volta no laço
