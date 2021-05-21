@@ -1,0 +1,72 @@
+from epidemia import * # Programa que tem a classe populacao e individuo
+
+def define_populacao(**kwargs): # Funcao que cria uma populacao
+    pop = populacao(**kwargs)
+    pop.declara_individuos()
+
+    return pop
+
+def graficos(i,j):                                               # Funcao que cria cada grafico
+    gs = axs[i, j].get_gridspec()
+    axSerieTemporal = fig.add_subplot(gs[i, 2*j:2*j + 2])        # Atribui a coluna 2j à 2j +2 na linha i à variavel axSerieTemporal
+    axSerieTemporal.set_facecolor('#DCDCDC')                     # Preenche seu fundo da mesma cor que a tela vai usar
+    axSerieTemporal.set_xlabel('Tempo')                          # Nomeia seu eixo X como "Tempo"
+    axSerieTemporal.axes.get_yaxis().set_visible(False)          # Oculta seu eixo Y
+    axSerieTemporal.set_title(f'Curva de contágio populacao {3*i + j +1}', fontsize=10)  # Define seu titulo como "Curva de contágio da populacao..."
+
+    axSerieTemporal.spines['right'].set_visible(False)          # Deixa o retangulo que cerca o grafico como oculto
+    axSerieTemporal.spines['top'].set_visible(False)
+    axSerieTemporal.spines['left'].set_visible(False)
+    axSerieTemporal.spines['bottom'].set_visible(False)
+
+    return axSerieTemporal                                      # Retorna o grafico
+
+def plota_textos(axSimulador, populacao):                       # Plota as informacoes da populacao recebida no parametro no grafico recebido no parametro
+
+    axSimulador.text(0, 80, f'População total: {populacao.populacaoTotal}', color='#4F4F4F')                                             
+    axSimulador.text(0, 60, f'Aderindo ao lockdown: {populacao.aderindoLockdown}', color='#4F4F4F')
+
+
+# ------------------------------- Inicia a parte grafica ---------------------------------#
+plt.style.use(['ggplot'])  # Usa o estilo ggploT
+
+fig, axs = plt.subplots(ncols=6, nrows=3, figsize=(12, 6))              # Cria uma figura com 18 subplots  dividos em 3 linhas e 6 colunas
+fig.suptitle('Modelo S I R', fontsize=35)                               # Define seu titulo como "Modelo S I R"
+fig.patch.set_facecolor('#DCDCDC')                                      # Pinta o fundo da figura da cor desejada
+
+for ax in axs[:,:]:                                                     # Itera todos os subplots
+    for k in ax:
+        k.remove()                                                      # Exclui todos eles
+
+#---------------------------------------------------------------------------------------------#
+
+listaPopulacos = list(range(9))
+for k in range(len(listaPopulacos)):
+    listaPopulacos[k] = define_populacao(n=100, proporcaoMascara=1, proporcaoIsolamento=0.5)          # Define 9 populacoes com as mesmas caracteristicas
+
+for i in range(3):
+    for j in range(3):
+        listaPopulacos[i*3 + j].grafico = graficos(i,j)                                               # Salva o grafico de cada uma na sua devida regiao
+        
+plt.tight_layout()                                                                                    # Arruma o layout
+
+for i in range(3):
+    for j in range(3):
+        plota_textos(listaPopulacos[i * 3 + j].grafico, listaPopulacos[i * 3 + j])                     # Uma laço igual o outro para postar os dados da populacao
+                                                                                                       # A funcao tight_layout() não se dá muito bem com textos
+        
+
+def animacao(i):
+    for j in listaPopulacos:
+        if len([x for x in j.listaIndividuos if x.infectado])>0:                  # Ainda tem infectados nessa população?
+            j.aplica_rodada()                                                     # Se sim, prossiga a simulação
+            j.atualiza_dados(j.grafico)
+        
+        else:               
+            pass                                                                  # Se nao, somente passe
+
+
+
+ani = animation.FuncAnimation(fig, animacao, interval=1,save_count=250)                     # Funcao que plota as simulacoes em 250 frames
+ani.save ('simulacao 9 populacoes.gif', fps = 60)                                           # Salva ela
+plt.show()                                                                                  # Mostra na tela
